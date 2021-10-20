@@ -5,7 +5,7 @@ import os
 
 session = boto3.Session(profile_name='default')
 client = session.client('s3', region_name='eu-west-1')
-bucketname = 'maurizio-test-1234'
+bucketname = ''
 # Fetch the list of existing buckets
 clientResponse = client.list_buckets()
 
