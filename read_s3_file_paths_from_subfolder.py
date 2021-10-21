@@ -2,7 +2,6 @@ import os
 import boto3
 from botocore.exceptions import ClientError
 
-
 def fetch_file_paths_from_subfolder(bucket_name, subfolder_name,  profile_name):
     # initialize session for the specified aws profile
     session = boto3.Session(profile_name=profile_name)
