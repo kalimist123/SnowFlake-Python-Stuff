@@ -8,7 +8,7 @@ MY_ENV_VAR = os.getenv('MY_ENV_VAR')
 print(f' results1 {MY_ENV_VAR}')
 
 ctx = snowflake.connector.connect(
-    user=os.getenv('USER'),  # Your Email ID
+    user=os.getenv('SNOWFLAKE_USER'),  # Your Email ID
     account=os.getenv('ACCOUNT'),
     password=os.getenv('PASSWORD'),
     region=os.getenv('REGION'),  # This could vary based on location
