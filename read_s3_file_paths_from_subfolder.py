@@ -3,7 +3,7 @@ import boto3
 import math
 from botocore.exceptions import ClientError
 
-
+# fetched file names from sub-folder in s3 bucket
 def fetch_file_paths_from_subfolder(bucket_name, subfolder_name, profile_name):
     # initialize session for the specified aws profile
     session = boto3.Session(profile_name=profile_name)
@@ -38,7 +38,7 @@ def fetch_file_paths_from_subfolder(bucket_name, subfolder_name, profile_name):
 
     return file_names
 
-
+# divides file names into batches based on the number of threads
 def divide_file_names_into_batches(file_names, num_threads):
     # calculate batch size
     batch_size = math.ceil(len(file_names) / num_threads)
@@ -60,17 +60,36 @@ def divide_file_names_into_batches(file_names, num_threads):
 
     return file_names_batches
 
+# builds SQL copy command for each batch of file names
+def build_sql_copy_command_for_each_bach_of_file_names(file_names_batches, table, stage):
+    sql_commands = []
+    for file_names in file_names_batches:
+        file_names_delimited = "', '".join(file_names)
+        sql = (f"copy into {table} "
+               f"from {stage} "
+               "file_format = (type = json) "
+               f"files = ('{file_names_delimited}');")
 
-# *** main
+        sql_commands.append(sql)
+
+    return sql_commands
+
+
+# ***
+# *** main ***
 bucket_name = 'sisense-mvp'
 subfolder_name = 'test-folder'
 aws_profile = 'gmail-profile'
 num_threads = 3
+destination_table = 'json_table'
+stage = '@rocketship_external_stage_json'
 
 print('S3 bucket name: ' + bucket_name)
 print('S3 sub-folder name: ' + subfolder_name)
 print('AWS profile: ' + aws_profile)
 print('Number of async threads: ' + str(num_threads))
+print('Snowflake destination table: ' + destination_table)
+print('Snowflake stage: ' + stage)
 print()
 
 # fetch file names from sub-folder in s3 bucket
@@ -84,4 +103,13 @@ print()
 # divide file names into batches based on the number of threads
 file_names_batches = divide_file_names_into_batches(file_names, num_threads)
 
+print('List of file names divided into batches')
 print(file_names_batches)
+print()
+
+# build SQL copy command for each batch of file names
+sql_copy_commands = build_sql_copy_command_for_each_bach_of_file_names(file_names_batches, destination_table, stage)
+
+print('List of sql copy commands for each batch of file names')
+print("\n".join(sql_copy_commands))
+print()
