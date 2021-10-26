@@ -1,7 +1,16 @@
 import os
+import snowflake.connector
 import boto3
 import math
+import asyncio
+import concurrent.futures
 from botocore.exceptions import ClientError
+from dotenv import load_dotenv
+from timeit import default_timer as timer
+import time
+
+load_dotenv()
+
 
 # fetched file names from sub-folder in s3 bucket
 def fetch_file_paths_from_subfolder(bucket_name, subfolder_name, profile_name):
@@ -38,6 +47,7 @@ def fetch_file_paths_from_subfolder(bucket_name, subfolder_name, profile_name):
 
     return file_names
 
+
 # divides file names into batches based on the number of threads
 def divide_file_names_into_batches(file_names, num_threads):
     # calculate batch size
@@ -60,6 +70,7 @@ def divide_file_names_into_batches(file_names, num_threads):
 
     return file_names_batches
 
+
 # builds SQL copy command for each batch of file names
 def build_sql_copy_command_for_each_bach_of_file_names(file_names_batches, table, stage):
     sql_commands = []
@@ -74,7 +85,6 @@ def build_sql_copy_command_for_each_bach_of_file_names(file_names_batches, table
 
     return sql_commands
 
-
 # ***
 # *** main ***
 bucket_name = 'sisense-mvp'
@@ -82,6 +92,7 @@ subfolder_name = 'test-folder'
 aws_profile = 'gmail-profile'
 num_threads = 3
 destination_table = 'json_table'
+database = 'DEMO_DB'
 stage = '@rocketship_external_stage_json'
 
 print('S3 bucket name: ' + bucket_name)
@@ -113,3 +124,60 @@ sql_copy_commands = build_sql_copy_command_for_each_bach_of_file_names(file_name
 print('List of sql copy commands for each batch of file names')
 print("\n".join(sql_copy_commands))
 print()
+
+# *** copy data from s3 to snowflake
+
+# initialise snowflake connection
+ctx = snowflake.connector.connect(
+    user=os.getenv('SNOWFLAKE_USER'),  # Your Email ID
+    account=os.getenv('ACCOUNT'),
+    password=os.getenv('PASSWORD'),
+    region=os.getenv('REGION'),  # This could vary based on location
+)
+
+cur = ctx.cursor()  # Query data
+cnx = ctx
+
+try:
+    cnx.cursor().execute("USE " + database)  # Select the database to query in
+    cnx.cursor().execute("USE ROLE \"" + os.getenv('ROLE') + "\"")  # Select role to query in
+
+    print('Connection details')
+    print('(User, Role, Database, Warehouse, Schema')
+    cur.execute("SELECT CURRENT_USER(), CURRENT_ROLE() ,CURRENT_DATABASE(),CURRENT_WAREHOUSE(),CURRENT_SCHEMA();")
+    for (col1) in cur:
+        print('{0}'.format(col1))
+    print()
+
+    # Truncate destination table if it exists
+    print('Truncate destination table if it exists...')
+    cnx.cursor().execute("truncate table if exists " + destination_table + ";")
+    print('Truncate done')
+    print()
+
+    print('Copy data in parallel from s3 to snowflake destination table...')
+    start = timer()
+
+    query_ids = []
+    for sql_command in sql_copy_commands:
+        cur = ctx.cursor()
+        cur.execute_async(sql_command)
+        query_ids.append(cur.sfqid)
+
+    # Wait for the queries to finish running.
+    for query_id in query_ids:
+        while ctx.is_still_running(ctx.get_query_status(query_id)):
+            time.sleep(1)
+
+    elapsed = (timer() - start)
+    print("Copy data done and took: {} seconds".format(elapsed))
+    print()
+
+    print("Number of rows copied")
+    cur.execute("select count(1) from " + destination_table + ";")
+    for (col1) in cur:
+        print(col1)
+    print()
+
+finally:
+    cnx.close()
