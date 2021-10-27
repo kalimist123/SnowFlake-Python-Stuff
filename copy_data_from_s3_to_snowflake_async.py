@@ -156,15 +156,16 @@ try:
     print('Truncate done')
     print()
 
+    # Execute copy commands asynchronously
     print('Copy data in parallel from s3 to snowflake destination table...')
     start = timer()
-
     queries = dict()
     for sql_command in sql_copy_commands:
         cur = ctx.cursor()
         cur.execute_async(sql_command)
         queries[cur.sfqid] = sql_command
 
+    # Wait until all commands have executed and print each command when it completes
     completed_query_ids = []
     while len(completed_query_ids) < len(queries):
         for key, value in queries.items():
