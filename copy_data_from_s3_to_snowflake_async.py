@@ -2,8 +2,6 @@ import os
 import snowflake.connector
 import boto3
 import math
-import asyncio
-import concurrent.futures
 from botocore.exceptions import ClientError
 from dotenv import load_dotenv
 from timeit import default_timer as timer
@@ -171,12 +169,12 @@ try:
         for key, value in queries.items():
             if not ctx.is_still_running(ctx.get_query_status(key)) and key not in completed_query_ids:
                 completed_query_ids.append(key)
-                print("The following command has successfully completed: \n", value)
+                print("The following command has successfully completed in " + str(timer() - start) + " seconds: \n", value)
             time.sleep(1)
     print()
 
     elapsed = (timer() - start)
-    print("Copy data done and took: {} seconds".format(elapsed))
+    print("Overall data copy operation done and took: {} seconds".format(elapsed))
     print()
 
     print("Number of rows copied:")
