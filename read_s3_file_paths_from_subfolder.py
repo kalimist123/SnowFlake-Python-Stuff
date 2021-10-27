@@ -85,6 +85,7 @@ def build_sql_copy_command_for_each_bach_of_file_names(file_names_batches, table
 
     return sql_commands
 
+
 # ***
 # *** main ***
 bucket_name = 'sisense-mvp'
@@ -143,7 +144,7 @@ try:
     cnx.cursor().execute("USE ROLE \"" + os.getenv('ROLE') + "\"")  # Select role to query in
 
     print('Connection details')
-    print('(User, Role, Database, Warehouse, Schema')
+    print('(User, Role, Database, Warehouse, Schema)')
     cur.execute("SELECT CURRENT_USER(), CURRENT_ROLE() ,CURRENT_DATABASE(),CURRENT_WAREHOUSE(),CURRENT_SCHEMA();")
     for (col1) in cur:
         print('{0}'.format(col1))
@@ -158,25 +159,29 @@ try:
     print('Copy data in parallel from s3 to snowflake destination table...')
     start = timer()
 
-    query_ids = []
+    queries = dict()
     for sql_command in sql_copy_commands:
         cur = ctx.cursor()
         cur.execute_async(sql_command)
-        query_ids.append(cur.sfqid)
+        queries[cur.sfqid] = sql_command
 
-    # Wait for the queries to finish running.
-    for query_id in query_ids:
-        while ctx.is_still_running(ctx.get_query_status(query_id)):
+    completed_query_ids = []
+    while len(completed_query_ids) < len(queries):
+        for key, value in queries.items():
+            if not ctx.is_still_running(ctx.get_query_status(key)) and key not in completed_query_ids:
+                completed_query_ids.append(key)
+                print("The following command has successfully completed: \n", value)
             time.sleep(1)
+    print()
 
     elapsed = (timer() - start)
     print("Copy data done and took: {} seconds".format(elapsed))
     print()
 
-    print("Number of rows copied")
+    print("Number of rows copied:")
     cur.execute("select count(1) from " + destination_table + ";")
     for (col1) in cur:
-        print(col1)
+        print(col1[0])
     print()
 
 finally:
